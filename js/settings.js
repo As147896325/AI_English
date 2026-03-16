@@ -166,20 +166,23 @@ function clearAllData() {
     if (!confirm('再次确认：真的要清除吗？')) return;
 
     const username = Auth.getUsername();
-    const keysToRemove = [];
 
+    // 先收集所有要删除的 key，再统一删除
+    // 注意：不能在遍历中直接删除，否则 localStorage 的 index 会错位
+    const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
-        if (key.includes(username) && key !== Auth.USERS_KEY) {
+        if (key && key.includes(username) && key !== Auth.USERS_KEY) {
             keysToRemove.push(key);
         }
     }
 
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    showToast('数据已清除');
+    showToast('数据已清除 ✓');
     updateHomeStats();
     loadSettingsPage();
 }
+
 
 function logout() {
     Auth.logout();
@@ -189,9 +192,9 @@ function logout() {
 function saveLearningSettings() {
     const requiredCorrect = document.getElementById('required-correct-count').value;
     localStorage.setItem('wordwise_required_correct', requiredCorrect);
-    
+
     const sortMode = document.getElementById('sort-mode-select').value;
     localStorage.setItem('wordwise_sort_mode', sortMode);
-    
+
     showToast('学习设置已保存 ✓');
 }

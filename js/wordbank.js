@@ -5,6 +5,7 @@ const WordBank = {
 
     // Available word banks
     banks: [
+        { id: 'recommended', name: '推荐词汇', desc: '精选推荐词汇，含音标与释义', icon: '⭐', color: '#FF9500' },
         { id: 'kaoyan_core', name: '考研核心词', desc: '考研高频必考词汇', icon: '🔥', color: '#FF3B30' },
         { id: 'kaoyan_important', name: '考研重点词', desc: '考研中高频核心词汇', icon: '⭐️', color: '#FF9500' },
         { id: 'kaoyan_basic', name: '考研基础词', desc: '考研中低频基础词汇', icon: '📚', color: '#34C759' },
@@ -83,6 +84,29 @@ const WordBank = {
         return allWords;
     },
 
+    renderBankList() {
+        const container = document.getElementById('wordbank-list');
+        const selected = this.getSelectedBanks();
+
+        container.innerHTML = this.banks.map(bank => {
+            const isSelected = selected.includes(bank.id);
+            return `
+                <div class="wordbank-card ${isSelected ? 'selected' : ''}" 
+                     data-bank-id="${bank.id}" 
+                     onclick="toggleBankSelection('${bank.id}')">
+                  <div class="wordbank-icon" style="background:${bank.color}20; color:${bank.color};">
+                    ${bank.icon}
+                  </div>
+                  <div class="wordbank-info">
+                    <div class="wordbank-name">${bank.name}</div>
+                    <div class="wordbank-desc">${bank.desc}</div>
+                  </div>
+                  <div class="wordbank-check"></div>
+                </div>
+              `;
+        }).join('');
+    },
+
     // Internal helper for this object context
     _loadHelper() { }
 };
@@ -100,30 +124,6 @@ async function loadBankWithFallback(bankId, ctx) {
         return [];
     }
 }
-
-renderBankList() {
-    const container = document.getElementById('wordbank-list');
-    const selected = this.getSelectedBanks();
-
-    container.innerHTML = this.banks.map(bank => {
-        const isSelected = selected.includes(bank.id);
-        return `
-            <div class="wordbank-card ${isSelected ? 'selected' : ''}" 
-                 data-bank-id="${bank.id}" 
-                 onclick="toggleBankSelection('${bank.id}')">
-              <div class="wordbank-icon" style="background:${bank.color}20; color:${bank.color};">
-                ${bank.icon}
-              </div>
-              <div class="wordbank-info">
-                <div class="wordbank-name">${bank.name}</div>
-                <div class="wordbank-desc">${bank.desc}</div>
-              </div>
-              <div class="wordbank-check"></div>
-            </div>
-          `;
-    }).join('');
-}
-};
 
 function toggleBankSelection(bankId) {
     const card = document.querySelector(`[data-bank-id="${bankId}"]`);
