@@ -37,14 +37,34 @@ function onProviderChange() {
     const provider = document.getElementById('ai-provider').value;
     const modelInput = document.getElementById('model-name-input');
     const customSection = document.getElementById('custom-url-section');
+    const modelList = document.getElementById('model-list-container');
 
     if (provider === 'custom') {
         customSection.style.display = '';
         modelInput.placeholder = '输入模型名称';
+        if (modelList) modelList.innerHTML = '';
     } else {
         customSection.style.display = 'none';
-        modelInput.value = AI.providers[provider]?.defaultModel || '';
-        modelInput.placeholder = AI.providers[provider]?.defaultModel || '';
+        const defaultModel = AI.providers[provider]?.defaultModel || '';
+        modelInput.value = defaultModel;
+        modelInput.placeholder = defaultModel;
+
+        // Render recommended models if available
+        if (modelList && AI.providers[provider]?.models) {
+            const models = AI.providers[provider].models;
+            modelList.innerHTML = `
+                <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
+                    ${models.map(m => `
+                        <button class="btn btn-secondary btn-sm" style="font-size:11px; padding:4px 8px;" 
+                                onclick="document.getElementById('model-name-input').value='${m.id}'">
+                            ${m.name}
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        } else if (modelList) {
+            modelList.innerHTML = '';
+        }
     }
 }
 
@@ -183,6 +203,58 @@ function clearAllData() {
     loadSettingsPage();
 }
 
+function showChangePasswordModal() {
+    const modalHTML = `
+    <div class="modal-overlay show" id="password-modal" onclick="closePasswordModal(event)">
+      <div class="modal-content" onclick="event.stopPropagation()" style="max-width:400px;">
+        <div class="modal-handle"></div>
+        <div class="text-center">
+          <div style="font-size:48px;margin-bottom:12px;">🔒</div>
+          <h2 style="margin-bottom:8px;">修改密码</h2>
+          <p class="text-secondary" style="margin-bottom:20px; font-size:13px;">请妥善保管你的新密码</p>
+          
+          <div class="form-group text-left" style="margin-bottom:12px;">
+            <label class="form-label">旧密码</label>
+            <input type="password" id="old-password" class="form-input" placeholder="请输入旧密码">
+          </div>
+          
+          <div class="form-group text-left" style="margin-bottom:20px;">
+            <label class="form-label">新密码</label>
+            <input type="password" id="new-password" class="form-input" placeholder="请输入新密码 (6位以上)">
+          </div>
+
+          <button class="btn btn-primary btn-block btn-lg" onclick="executeChangePassword()">确认修改</button>
+          <button class="btn btn-secondary btn-block mt-8" onclick="closePasswordModal()">取消</button>
+        </div>
+      </div>
+    </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function closePasswordModal(e) {
+    if (e && e.target !== e.currentTarget) return;
+    const modal = document.getElementById('password-modal');
+    if (modal) modal.remove();
+}
+
+async function executeChangePassword() {
+    const oldPass = document.getElementById('old-password').value;
+    const newPass = document.getElementById('new-password').value;
+
+    if (!oldPass || !newPass) {
+        showToast('请填写完整信息');
+        return;
+    }
+
+    const result = await Auth.changePassword(oldPass, newPass);
+    if (result.ok) {
+        showToast('密码修改成功 ✓');
+        closePasswordModal();
+    } else {
+        showToast('❌ ' + result.msg);
+    }
+}
 
 function logout() {
     Auth.logout();

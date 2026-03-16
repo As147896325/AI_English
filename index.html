@@ -226,6 +226,7 @@
         </div>
         <div style="padding: 0 16px 14px;">
           <input class="form-input" type="text" id="model-name-input" placeholder="e.g. gpt-4o-mini">
+          <div id="model-list-container"></div>
         </div>
         <div style="padding: 8px 16px 14px; display:flex; gap:10px;">
           <button class="btn btn-primary btn-sm" onclick="testAPIConnection()">测试连接</button>
@@ -331,9 +332,16 @@
         </div>
       </div>
 
-      <!-- Data management -->
-      <div class="section-title">数据管理</div>
+      <!-- Account Security -->
+      <div class="section-title">账户安全</div>
       <div class="card-group">
+        <div class="settings-item card-group-item" onclick="showChangePasswordModal()">
+          <div class="settings-item-left">
+            <div class="settings-item-icon" style="background:#FF9500;">🔒</div>
+            <span class="settings-item-label">修改密码</span>
+          </div>
+          <span class="settings-item-value">›</span>
+        </div>
         <div class="settings-item card-group-item" onclick="exportData()">
           <div class="settings-item-left">
             <div class="settings-item-icon" style="background:#007AFF;">💾</div>

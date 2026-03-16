@@ -76,12 +76,31 @@ const WordBank = {
         if (sortMode === 'frequency') {
             allWords.sort((a, b) => (b.frequency || 0) - (a.frequency || 0));
         } else if (sortMode === 'random') {
-            allWords.sort(() => Math.random() - 0.5);
+            // Stable shuffle based on date seed
+            const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+            const seed = parseInt(dateStr);
+            this._seededShuffle(allWords, seed);
         } else if (sortMode === 'alphabetical') {
             allWords.sort((a, b) => a.word.localeCompare(b.word));
         }
 
         return allWords;
+    },
+
+    // Simple Fisher-Yates shuffle with a seed
+    _seededShuffle(array, seed) {
+        let m = array.length, t, i;
+        while (m) {
+            // Pseudo-random generator based on seed
+            seed = (seed * 9301 + 49297) % 233280;
+            const rnd = seed / 233280;
+
+            i = Math.floor(rnd * m--);
+            t = array[m];
+            array[m] = array[i];
+            array[i] = t;
+        }
+        return array;
     },
 
     renderBankList() {

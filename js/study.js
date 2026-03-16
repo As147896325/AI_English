@@ -4,6 +4,7 @@ const Study = {
     DATA_KEY_PREFIX: 'wordwise_study_',
     STREAK_KEY_PREFIX: 'wordwise_streak_',
     TODAY_KEY_PREFIX: 'wordwise_today_',
+    SESSION_KEY_PREFIX: 'wordwise_session_',
 
     // Ebbinghaus intervals (in days)
     INTERVALS: [1, 2, 4, 7, 15, 30],
@@ -11,9 +12,30 @@ const Study = {
     // Current study session
     session: {
         words: [],
+        queue: [],
         currentIndex: 0,
         mode: 'learn', // 'learn' or 'review'
-        results: { correct: 0, wrong: 0 }
+        results: { correct: 0, wrong: 0, actions: 0 },
+        learnedWords: 0,
+        totalWords: 0,
+        wordState: {}
+    },
+
+    getSessionKey() {
+        return this.SESSION_KEY_PREFIX + Auth.getUsername();
+    },
+
+    saveSession() {
+        localStorage.setItem(this.getSessionKey(), JSON.stringify(this.session));
+    },
+
+    loadSession() {
+        const data = localStorage.getItem(this.getSessionKey());
+        return data ? JSON.parse(data) : null;
+    },
+
+    clearSession() {
+        localStorage.removeItem(this.getSessionKey());
     },
 
     getDataKey() {
@@ -184,6 +206,18 @@ const Study = {
                 return false;
             }
 
+            // Check for existing saved session
+            const savedSession = this.loadSession();
+            if (savedSession && savedSession.queue && savedSession.queue.length > 0 && savedSession.mode === mode) {
+                if (confirm(`发现上次未完成的记录（还剩 ${savedSession.queue.length} 个词），是否继续？`)) {
+                    this.session = savedSession;
+                    this._prepareNextWord();
+                    return true;
+                } else {
+                    this.clearSession();
+                }
+            }
+
             // Use user-chosen count, default to 20
             const count = wordCount || 20;
             words = newWords.slice(0, count);
@@ -207,6 +241,7 @@ const Study = {
             this.session.wordState[w.word] = 0;
         }
 
+        this.saveSession();
         this._prepareNextWord();
         return true;
     },
@@ -259,6 +294,7 @@ const Study = {
             }
         }
 
+        this.saveSession();
         this._prepareNextWord();
         return this.isSessionComplete();
     },
@@ -282,6 +318,7 @@ const Study = {
         this.session.queue.shift();
         this.session.queue.push(wordObj);
 
+        this.saveSession();
         this._prepareNextWord();
     },
 
@@ -469,6 +506,7 @@ function markWord(known) {
         const isComplete = Study.handleKnown();
 
         if (isComplete) {
+            this.clearSession();
             finishSession();
         } else {
             showCurrentWord();
@@ -477,6 +515,7 @@ function markWord(known) {
 }
 
 async function finishSession() {
+    Study.clearSession();
     const results = Study.session.results;
     // Calculate unique words correctly handled
     const learned = Study.session.learnedWords;

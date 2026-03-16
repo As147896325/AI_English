@@ -10,7 +10,14 @@ const AI = {
         siliconflow: {
             name: '硅基流动 (推荐)',
             endpoint: 'https://api.siliconflow.cn/v1/chat/completions',
-            defaultModel: 'Qwen/Qwen2.5-7B-Instruct'
+            defaultModel: 'Qwen/Qwen2.5-7B-Instruct',
+            models: [
+                { id: 'Qwen/Qwen2.5-7B-Instruct', name: '通义千问 7B (极速)' },
+                { id: 'Qwen/Qwen2.5-1.5B-Instruct', name: '通义千问 1.5B (秒出)' },
+                { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3 (智能)' },
+                { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B', name: 'DeepSeek R1-7B (推理)' },
+                { id: 'THUDM/glm-4-9b-chat', name: 'GLM-4-9B (均衡)' }
+            ]
         },
         gemini: {
             name: 'Google Gemini',
@@ -592,7 +599,8 @@ async function startBatchPreGenerate() {
     const dailyLimit = parseInt(localStorage.getItem('wordwise_daily_new') || '20');
 
     // Combine: next batch of new words + today's review words
-    const newWords = allWords.filter(w => !studyData[w.word]).slice(0, dailyLimit);
+    const unlearnedWords = allWords.filter(w => !studyData[w.word]);
+    const newWords = unlearnedWords.slice(0, dailyLimit);
     const reviewWords = Study.getReviewWords(allWords);
 
     // De-duplicate targets just in case

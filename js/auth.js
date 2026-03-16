@@ -73,6 +73,29 @@ const Auth = {
         return { ok: true };
     },
 
+    async changePassword(oldPassword, newPassword) {
+        const username = this.getUsername();
+        if (!username) return { ok: false, msg: '未登录' };
+
+        const users = this.getUsers();
+        const user = users[username];
+
+        const oldHash = await this.hashPassword(oldPassword);
+        if (oldHash !== user.passwordHash) {
+            return { ok: false, msg: '旧密码不正确' };
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            return { ok: false, msg: '新密码至少需要 6 位' };
+        }
+
+        const newHash = await this.hashPassword(newPassword);
+        user.passwordHash = newHash;
+        this.saveUsers(users);
+
+        return { ok: true };
+    },
+
     setSession(username) {
         localStorage.setItem(this.SESSION_KEY, JSON.stringify({
             username,
