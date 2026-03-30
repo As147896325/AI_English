@@ -154,10 +154,17 @@
         </div>
       </div>
 
-      <!-- Actions -->
-      <div class="study-actions" id="study-actions">
-        <button class="btn btn-danger" onclick="markWord(false)">😕 不认识</button>
-        <button class="btn btn-success" onclick="markWord(true)">😊 认识</button>
+      <!-- Phase 1: Initial choice (3 buttons) -->
+      <div class="study-actions study-actions-3" id="study-actions">
+        <button class="btn btn-danger" onclick="markWord('unknown')">😕 不认识</button>
+        <button class="btn btn-warning" onclick="markWord('fuzzy')">🤔 模糊</button>
+        <button class="btn btn-success" onclick="markWord('known')">😊 认识</button>
+      </div>
+
+      <!-- Phase 2: Confirm (2 buttons, initially hidden) -->
+      <div class="study-confirm-actions" id="study-confirm-actions" style="display:none;">
+        <button class="btn btn-danger" onclick="confirmMark(false)">❌ 记错了</button>
+        <button class="btn btn-success" onclick="confirmMark(true)">✅ 记对了</button>
       </div>
 
       <!-- AI button -->
@@ -172,6 +179,30 @@
       <p class="page-subtitle">选择你要学习的词库</p>
       <div id="wordbank-list"></div>
       <button class="btn btn-primary btn-block btn-lg mt-24" onclick="saveWordBankSelection()">保存选择</button>
+    </div>
+
+    <!-- ===== Notebook Page ===== -->
+    <div class="page" id="page-notebook">
+      <h1 class="page-title">单词本</h1>
+      <p class="page-subtitle">查看已学单词与 AI 注解</p>
+      <!-- Filter tabs -->
+      <div class="notebook-filters">
+        <button class="notebook-filter active" data-filter="all" onclick="filterNotebook('all', this)">全部</button>
+        <button class="notebook-filter" data-filter="learning" onclick="filterNotebook('learning', this)">学习中</button>
+        <button class="notebook-filter" data-filter="mastered" onclick="filterNotebook('mastered', this)">已掌握</button>
+      </div>
+      <!-- Search -->
+      <div style="margin-bottom:12px;">
+        <input class="form-input" type="text" id="notebook-search" placeholder="搜索单词..."
+          oninput="searchNotebook(this.value)">
+      </div>
+      <!-- Word list -->
+      <div id="notebook-list"></div>
+      <div id="notebook-empty" class="empty-state" style="display:none;">
+        <div class="empty-state-icon">📖</div>
+        <div class="empty-state-title">还没有学过的单词</div>
+        <div class="empty-state-desc">去首页开始学习吧！</div>
+      </div>
     </div>
 
     <!-- ===== Settings Page ===== -->
@@ -221,12 +252,14 @@
         <div class="settings-item">
           <div class="settings-item-left">
             <div class="settings-item-icon" style="background:#5AC8FA;">📦</div>
-            <span class="settings-item-label">模型名称</span>
+            <span class="settings-item-label">模型选择</span>
           </div>
         </div>
         <div style="padding: 0 16px 14px;">
-          <input class="form-input" type="text" id="model-name-input" placeholder="e.g. gpt-4o-mini">
-          <div id="model-list-container"></div>
+          <select class="form-select" id="model-name-select" style="width:100%; margin-bottom:8px;"
+            onchange="onModelSelectChange()">
+          </select>
+          <input class="form-input" type="text" id="model-name-input" placeholder="输入自定义模型名称" style="display:none;">
         </div>
         <div style="padding: 8px 16px 14px; display:flex; gap:10px;">
           <button class="btn btn-primary btn-sm" onclick="testAPIConnection()">测试连接</button>
@@ -270,12 +303,40 @@
           </div>
           <span class="settings-item-value" id="cache-size">0 KB</span>
         </div>
+        <div class="settings-item">
+          <div class="settings-item-left">
+            <div class="settings-item-icon" style="background:#FF9500;">🔢</div>
+            <span class="settings-item-label">预热数量</span>
+          </div>
+          <select class="form-select" id="preheat-count" style="width:100px;" onchange="savePreheatCount()">
+            <option value="20">20 词</option>
+            <option value="50">50 词</option>
+            <option value="100">100 词</option>
+            <option value="200">200 词</option>
+            <option value="500">500 词</option>
+          </select>
+        </div>
         <div style="padding: 8px 16px 14px; display:flex; gap:10px;">
           <button class="btn btn-sm" onclick="startBatchPreGenerate()"
             style="background: linear-gradient(135deg, #667eea, #764ba2); color:white; border:none;">🚀 批量预热</button>
           <button class="btn btn-secondary btn-sm"
             onclick="if(confirm('确定清除所有 AI 缓存？')) { AI.clearCache(); updateUsageDisplay(); showToast('缓存已清除'); }">🗑️
             清除缓存</button>
+        </div>
+      </div>
+
+      <!-- Custom Prompt -->
+      <div class="section-title">自定义提示词</div>
+      <div class="card-group">
+        <div style="padding:14px 16px;">
+          <p class="text-secondary" style="font-size:12px; margin-bottom:8px;">自定义 AI 辅助记忆的提示词。用 <code>{word}</code>
+            代表单词。留空则使用默认提示词。</p>
+          <textarea class="form-input" id="custom-prompt-input" rows="6"
+            style="resize:vertical; font-size:13px; line-height:1.5;" placeholder="留空使用默认提示词..."></textarea>
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            <button class="btn btn-primary btn-sm" onclick="saveCustomPrompt()">保存提示词</button>
+            <button class="btn btn-secondary btn-sm" onclick="resetCustomPrompt()">恢复默认</button>
+          </div>
         </div>
       </div>
 
@@ -370,7 +431,7 @@
       <button class="btn btn-secondary btn-block mt-24" onclick="logout()">退出登录</button>
 
       <div class="text-center mt-16 text-secondary" style="font-size:var(--font-size-xs);">
-        WordWise v2.0 · AI 驱动 · 科学记忆 · 智能缓存
+        WordWise v3.0 · AI 驱动 · 科学记忆 · 智能缓存
       </div>
     </div>
 
@@ -391,6 +452,13 @@
       </svg>
       <span>词库</span>
     </button>
+    <button class="nav-item" data-page="notebook" onclick="navigateTo('notebook')">
+      <svg viewBox="0 0 24 24">
+        <path
+          d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-1 9H9V9h10v2zm-4 4H9v-2h6v2zm4-8H9V5h10v2z" />
+      </svg>
+      <span>单词本</span>
+    </button>
     <button class="nav-item" data-page="settings" onclick="navigateTo('settings')">
       <svg viewBox="0 0 24 24">
         <path
@@ -408,6 +476,7 @@
   <script src="js/wordbank.js"></script>
   <script src="js/study.js"></script>
   <script src="js/ai.js"></script>
+  <script src="js/notebook.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/app.js"></script>
 </body>

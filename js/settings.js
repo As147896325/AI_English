@@ -3,15 +3,23 @@
 function loadSettingsPage() {
     const settings = AI.getSettings();
 
-    document.getElementById('ai-provider').value = settings.provider || 'openai';
+    document.getElementById('ai-provider').value = settings.provider || 'siliconflow';
     document.getElementById('api-key-input').value = settings.apiKey || '';
-    document.getElementById('model-name-input').value = settings.model || AI.providers[settings.provider]?.defaultModel || '';
+
+    // Setup model dropdown
+    populateModelSelect(settings.provider, settings.model);
 
     if (settings.provider === 'custom') {
         document.getElementById('custom-url-section').style.display = '';
         document.getElementById('custom-api-url').value = settings.customUrl || '';
     } else {
         document.getElementById('custom-url-section').style.display = 'none';
+    }
+
+    // Custom prompt
+    const promptInput = document.getElementById('custom-prompt-input');
+    if (promptInput) {
+        promptInput.value = settings.customPrompt || '';
     }
 
     // Daily words
@@ -26,6 +34,11 @@ function loadSettingsPage() {
     const sortMode = localStorage.getItem('wordwise_sort_mode') || 'frequency';
     document.getElementById('sort-mode-select').value = sortMode;
 
+    // Preheat count
+    const preheatCount = localStorage.getItem('wordwise_preheat_count') || '20';
+    const preheatEl = document.getElementById('preheat-count');
+    if (preheatEl) preheatEl.value = preheatCount;
+
     // Dark mode
     document.getElementById('dark-mode-toggle').checked = document.documentElement.getAttribute('data-theme') === 'dark';
 
@@ -33,45 +46,87 @@ function loadSettingsPage() {
     updateUsageDisplay();
 }
 
+function populateModelSelect(provider, currentModel) {
+    const select = document.getElementById('model-name-select');
+    const customInput = document.getElementById('model-name-input');
+    if (!select) return;
+
+    const providerConfig = AI.providers[provider];
+    const models = providerConfig?.models || [];
+    const defaultModel = providerConfig?.defaultModel || '';
+
+    select.innerHTML = '';
+
+    if (models.length > 0) {
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.name;
+            select.appendChild(opt);
+        });
+    }
+
+    // Add custom option
+    const customOpt = document.createElement('option');
+    customOpt.value = '__custom__';
+    customOpt.textContent = '自定义模型...';
+    select.appendChild(customOpt);
+
+    // Set current value
+    const modelToSet = currentModel || defaultModel;
+    const isPreset = models.some(m => m.id === modelToSet);
+
+    if (isPreset) {
+        select.value = modelToSet;
+        customInput.style.display = 'none';
+    } else if (modelToSet) {
+        select.value = '__custom__';
+        customInput.style.display = '';
+        customInput.value = modelToSet;
+    } else {
+        select.value = models.length > 0 ? models[0].id : '__custom__';
+        customInput.style.display = select.value === '__custom__' ? '' : 'none';
+    }
+}
+
+function onModelSelectChange() {
+    const select = document.getElementById('model-name-select');
+    const customInput = document.getElementById('model-name-input');
+    if (select.value === '__custom__') {
+        customInput.style.display = '';
+        customInput.focus();
+    } else {
+        customInput.style.display = 'none';
+    }
+}
+
 function onProviderChange() {
     const provider = document.getElementById('ai-provider').value;
-    const modelInput = document.getElementById('model-name-input');
     const customSection = document.getElementById('custom-url-section');
-    const modelList = document.getElementById('model-list-container');
 
     if (provider === 'custom') {
         customSection.style.display = '';
-        modelInput.placeholder = '输入模型名称';
-        if (modelList) modelList.innerHTML = '';
     } else {
         customSection.style.display = 'none';
-        const defaultModel = AI.providers[provider]?.defaultModel || '';
-        modelInput.value = defaultModel;
-        modelInput.placeholder = defaultModel;
-
-        // Render recommended models if available
-        if (modelList && AI.providers[provider]?.models) {
-            const models = AI.providers[provider].models;
-            modelList.innerHTML = `
-                <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">
-                    ${models.map(m => `
-                        <button class="btn btn-secondary btn-sm" style="font-size:11px; padding:4px 8px;" 
-                                onclick="document.getElementById('model-name-input').value='${m.id}'">
-                            ${m.name}
-                        </button>
-                    `).join('')}
-                </div>
-            `;
-        } else if (modelList) {
-            modelList.innerHTML = '';
-        }
     }
+
+    // Re-populate model select
+    const defaultModel = AI.providers[provider]?.defaultModel || '';
+    populateModelSelect(provider, defaultModel);
+}
+
+function getSelectedModel() {
+    const select = document.getElementById('model-name-select');
+    if (select.value === '__custom__') {
+        return document.getElementById('model-name-input').value.trim();
+    }
+    return select.value;
 }
 
 function saveAPISettings() {
     const provider = document.getElementById('ai-provider').value;
     const apiKey = document.getElementById('api-key-input').value.trim();
-    const model = document.getElementById('model-name-input').value.trim();
+    const model = getSelectedModel();
     const customUrl = document.getElementById('custom-api-url')?.value.trim() || '';
 
     if (!apiKey) {
@@ -79,12 +134,13 @@ function saveAPISettings() {
         return;
     }
 
-    AI.saveSettings({ provider, apiKey, model, customUrl });
+    // Preserve custom prompt
+    const existing = AI.getSettings();
+    AI.saveSettings({ provider, apiKey, model, customUrl, customPrompt: existing.customPrompt || '' });
     showToast('API 设置已保存 ✓');
 }
 
 async function testAPIConnection() {
-    // Save first
     saveAPISettings();
 
     const btn = event.target;
@@ -104,6 +160,28 @@ async function testAPIConnection() {
     }
 }
 
+function saveCustomPrompt() {
+    const prompt = document.getElementById('custom-prompt-input').value.trim();
+    const settings = AI.getSettings();
+    settings.customPrompt = prompt;
+    AI.saveSettings(settings);
+    showToast(prompt ? '自定义提示词已保存 ✓' : '将使用默认提示词');
+}
+
+function resetCustomPrompt() {
+    document.getElementById('custom-prompt-input').value = '';
+    const settings = AI.getSettings();
+    settings.customPrompt = '';
+    AI.saveSettings(settings);
+    showToast('已恢复默认提示词');
+}
+
+function savePreheatCount() {
+    const value = document.getElementById('preheat-count').value;
+    localStorage.setItem('wordwise_preheat_count', value);
+    showToast(`预热数量已设为 ${value} 词`);
+}
+
 function saveDailyWords() {
     const value = document.getElementById('daily-new-words').value;
     localStorage.setItem('wordwise_daily_new', value);
@@ -115,7 +193,6 @@ function toggleDarkMode() {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : '');
     localStorage.setItem('wordwise_theme', isDark ? 'dark' : 'light');
 
-    // Update theme-color meta
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
         metaTheme.content = isDark ? '#000000' : '#F2F2F7';
@@ -131,7 +208,6 @@ function exportData() {
         data: {}
     };
 
-    // Collect all user data
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
         if (key.includes(username) || key === 'wordwise_theme' || key === 'wordwise_daily_new') {
@@ -187,8 +263,6 @@ function clearAllData() {
 
     const username = Auth.getUsername();
 
-    // 先收集所有要删除的 key，再统一删除
-    // 注意：不能在遍历中直接删除，否则 localStorage 的 index 会错位
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -269,4 +343,15 @@ function saveLearningSettings() {
     localStorage.setItem('wordwise_sort_mode', sortMode);
 
     showToast('学习设置已保存 ✓');
+}
+
+function togglePassword(inputId, btn) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '隐藏';
+    } else {
+        input.type = 'password';
+        btn.textContent = '显示';
+    }
 }

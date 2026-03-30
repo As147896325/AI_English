@@ -14,50 +14,87 @@ const AI = {
             models: [
                 { id: 'Qwen/Qwen2.5-7B-Instruct', name: '通义千问 7B (极速)' },
                 { id: 'Qwen/Qwen2.5-1.5B-Instruct', name: '通义千问 1.5B (秒出)' },
+                { id: 'Qwen/Qwen2.5-72B-Instruct', name: '通义千问 72B (最强)' },
                 { id: 'deepseek-ai/DeepSeek-V3', name: 'DeepSeek V3 (智能)' },
                 { id: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B', name: 'DeepSeek R1-7B (推理)' },
                 { id: 'THUDM/glm-4-9b-chat', name: 'GLM-4-9B (均衡)' }
             ]
         },
         gemini: {
-            name: 'Google Gemini',
+            name: 'Google AI Studio',
             endpoint: 'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent',
-            defaultModel: 'gemini-2.0-flash'
-        },
-        openai: {
-            name: 'OpenAI',
-            endpoint: 'https://api.openai.com/v1/chat/completions',
-            defaultModel: 'gpt-4o-mini'
-        },
-        qwen: {
-            name: '通义千问',
-            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-            defaultModel: 'qwen-plus'
-        },
-        doubao: {
-            name: '豆包',
-            endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
-            defaultModel: 'doubao-pro-32k'
-        },
-        deepseek: {
-            name: 'DeepSeek',
-            endpoint: 'https://api.deepseek.com/v1/chat/completions',
-            defaultModel: 'deepseek-chat'
-        },
-        moonshot: {
-            name: 'Moonshot (Kimi)',
-            endpoint: 'https://api.moonshot.cn/v1/chat/completions',
-            defaultModel: 'moonshot-v1-8k'
+            defaultModel: 'gemini-2.0-flash',
+            models: [
+                { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (推荐)' },
+                { id: 'gemini-2.5-flash-preview-04-17', name: 'Gemini 2.5 Flash (快速)' },
+                { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro (最强)' },
+                { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash (经济)' }
+            ]
         },
         zhipu: {
             name: '智谱 GLM',
             endpoint: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-            defaultModel: 'glm-4.7-flash'
+            defaultModel: 'glm-4-flash',
+            models: [
+                { id: 'glm-4-flash', name: 'GLM-4 Flash (免费)' },
+                { id: 'glm-4-air', name: 'GLM-4 Air (均衡)' },
+                { id: 'glm-4-plus', name: 'GLM-4 Plus (强大)' },
+                { id: 'glm-4-long', name: 'GLM-4 Long (长文本)' }
+            ]
+        },
+        deepseek: {
+            name: 'DeepSeek',
+            endpoint: 'https://api.deepseek.com/v1/chat/completions',
+            defaultModel: 'deepseek-chat',
+            models: [
+                { id: 'deepseek-chat', name: 'DeepSeek Chat (通用)' },
+                { id: 'deepseek-reasoner', name: 'DeepSeek R1 (推理)' }
+            ]
+        },
+        qwen: {
+            name: '通义千问',
+            endpoint: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            defaultModel: 'qwen-plus',
+            models: [
+                { id: 'qwen-turbo', name: 'Qwen Turbo (快速)' },
+                { id: 'qwen-plus', name: 'Qwen Plus (推荐)' },
+                { id: 'qwen-max', name: 'Qwen Max (最强)' }
+            ]
+        },
+        openai: {
+            name: 'OpenAI',
+            endpoint: 'https://api.openai.com/v1/chat/completions',
+            defaultModel: 'gpt-4o-mini',
+            models: [
+                { id: 'gpt-4o-mini', name: 'GPT-4o Mini (经济)' },
+                { id: 'gpt-4o', name: 'GPT-4o (强大)' },
+                { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini (新)' }
+            ]
+        },
+        doubao: {
+            name: '豆包',
+            endpoint: 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+            defaultModel: 'doubao-1.5-pro-32k',
+            models: [
+                { id: 'doubao-1.5-pro-32k', name: '豆包 1.5 Pro (推荐)' },
+                { id: 'doubao-pro-32k', name: '豆包 Pro 32K' },
+                { id: 'doubao-lite-32k', name: '豆包 Lite (经济)' }
+            ]
+        },
+        moonshot: {
+            name: 'Moonshot (Kimi)',
+            endpoint: 'https://api.moonshot.cn/v1/chat/completions',
+            defaultModel: 'moonshot-v1-8k',
+            models: [
+                { id: 'moonshot-v1-8k', name: 'Moonshot 8K (快速)' },
+                { id: 'moonshot-v1-32k', name: 'Moonshot 32K (长文本)' }
+            ]
         },
         custom: {
             name: '自定义',
             endpoint: '',
-            defaultModel: ''
+            defaultModel: '',
+            models: []
         }
     },
 
@@ -79,7 +116,8 @@ const AI = {
             provider: 'siliconflow',
             apiKey: '',
             customUrl: '',
-            model: ''
+            model: '',
+            customPrompt: ''
         };
     },
 
@@ -186,6 +224,12 @@ const AI = {
 
     // Build the AI prompt for word memorization
     buildPrompt(word) {
+        const settings = this.getSettings();
+        // Use custom prompt if set
+        if (settings.customPrompt && settings.customPrompt.trim()) {
+            return settings.customPrompt.replace(/\{word\}/g, word);
+        }
+
         return `你是一位专业的英语词汇教学专家，擅长用多种创意方法帮助学生记忆英语单词。请针对单词 "${word}" 从以下角度提供详细的记忆辅助：
 
 **1. 📝 词根词缀拆解**
@@ -557,10 +601,14 @@ function showAIContent(aiArea, content, tokens, fromCache, cachedAt) {
           <span style="margin-left:auto; display:flex; align-items:center; gap:6px;">
             ${cacheInfo}
             ${tokenInfo}
-            <button class="btn-icon-sm" onclick="getAIAssist(true)" title="重新生成" style="font-size:14px; cursor:pointer; background:none; border:none; padding:2px 4px; border-radius:4px;">🔄</button>
           </span>
         </div>
         <div class="ai-content-body">${formatted}</div>
+        <div style="margin-top:12px; text-align:center;">
+          <button class="btn btn-secondary btn-sm" onclick="getAIAssist(true)" style="font-size:13px;">
+            🔄 不满意？重新生成
+          </button>
+        </div>
       </div>
     `;
 }
@@ -594,13 +642,13 @@ async function startBatchPreGenerate() {
         return;
     }
 
-    // Get the words that will be studied next (new words or review words)
+    // Get the words that will be studied next
     const studyData = Study.getStudyData();
-    const dailyLimit = parseInt(localStorage.getItem('wordwise_daily_new') || '20');
+    const preheatCount = parseInt(localStorage.getItem('wordwise_preheat_count') || '20');
 
     // Combine: next batch of new words + today's review words
     const unlearnedWords = allWords.filter(w => !studyData[w.word]);
-    const newWords = unlearnedWords.slice(0, dailyLimit);
+    const newWords = unlearnedWords.slice(0, preheatCount);
     const reviewWords = Study.getReviewWords(allWords);
 
     // De-duplicate targets just in case

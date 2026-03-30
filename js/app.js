@@ -41,6 +41,8 @@ function navigateTo(page) {
         updateHomeStats();
     } else if (page === 'wordbank') {
         WordBank.renderBankList();
+    } else if (page === 'notebook') {
+        loadNotebookPage();
     } else if (page === 'settings') {
         loadSettingsPage();
     }
@@ -127,7 +129,7 @@ function initApp() {
     window.addEventListener('hashchange', () => {
         if (!Auth.isLoggedIn()) return;
         const page = window.location.hash.replace('#', '') || 'home';
-        if (['home', 'wordbank', 'settings'].includes(page)) {
+        if (['home', 'wordbank', 'notebook', 'settings'].includes(page)) {
             navigateTo(page);
         }
     });

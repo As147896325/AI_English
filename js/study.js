@@ -15,7 +15,7 @@ const Study = {
         queue: [],
         currentIndex: 0,
         mode: 'learn', // 'learn' or 'review'
-        results: { correct: 0, wrong: 0, actions: 0 },
+        results: { correct: 0, wrong: 0, fuzzy: 0, actions: 0 },
         learnedWords: 0,
         totalWords: 0,
         wordState: {}
@@ -150,6 +150,15 @@ const Study = {
         return Object.values(studyData).filter(r => r.stage >= this.INTERVALS.length).length;
     },
 
+    // Fisher-Yates shuffle for truly random order
+    _shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+    },
+
     // Mark a word as known/unknown
     markWord(word, known) {
         const studyData = this.getStudyData();
@@ -160,6 +169,7 @@ const Study = {
                 stage: 0,
                 correctCount: 0,
                 wrongCount: 0,
+                fuzzyCount: 0,
                 firstSeen: this.getToday(),
                 nextReviewDate: null
             };
@@ -175,6 +185,30 @@ const Study = {
             record.nextReviewDate = this.getNextReviewDate(0);
         }
 
+        record.lastReviewed = this.getToday();
+        studyData[word] = record;
+        this.saveStudyData(studyData);
+    },
+
+    // Mark a word as fuzzy (seen but unsure)
+    markWordFuzzy(word) {
+        const studyData = this.getStudyData();
+        let record = studyData[word];
+
+        if (!record) {
+            record = {
+                stage: 0,
+                correctCount: 0,
+                wrongCount: 0,
+                fuzzyCount: 0,
+                firstSeen: this.getToday(),
+                nextReviewDate: null
+            };
+        }
+
+        // Fuzzy: don't advance stage, just schedule sooner review
+        record.fuzzyCount = (record.fuzzyCount || 0) + 1;
+        record.nextReviewDate = this.getNextReviewDate(0); // review tomorrow
         record.lastReviewed = this.getToday();
         studyData[word] = record;
         this.saveStudyData(studyData);
@@ -197,7 +231,7 @@ const Study = {
                 return false;
             }
             // Shuffle review words
-            words = words.sort(() => Math.random() - 0.5);
+            this._shuffle(words);
         } else {
             // Learn mode: get new words
             const newWords = this.getNewWords(allWords);
@@ -221,19 +255,21 @@ const Study = {
             // Use user-chosen count, default to 20
             const count = wordCount || 20;
             words = newWords.slice(0, count);
+            // Shuffle learn words too
+            this._shuffle(words);
         }
 
         const requiredCorrect = parseInt(localStorage.getItem('wordwise_required_correct') || '2');
 
         this.session = {
-            queue: [...words], // Clone the array for our active queue
+            queue: [...words],
             currentWord: null,
             mode,
             totalWords: words.length,
             learnedWords: 0,
             requiredCorrect: requiredCorrect,
-            results: { correct: 0, wrong: 0, actions: 0 },
-            wordState: {} // Tracks consecutive correct answers per word in this session
+            results: { correct: 0, wrong: 0, fuzzy: 0, actions: 0 },
+            wordState: {}
         };
 
         // Initialize word states
@@ -258,7 +294,7 @@ const Study = {
         return this.session.currentWord;
     },
 
-    // Handle when user clicks "Known"
+    // Handle when user confirms "记对了" after initial choice
     handleKnown() {
         if (!this.session.currentWord) return false;
 
@@ -273,10 +309,8 @@ const Study = {
         // Check if fully learned
         if (this.session.wordState[word] >= this.session.requiredCorrect) {
             this.session.learnedWords++;
-            // Commit to long-term memory system since it's fully learned
             this.markWord(word, true);
 
-            // Update streak & count
             this.updateStreak();
             if (this.session.mode === 'learn') {
                 this.incrementTodayCount('new');
@@ -285,7 +319,6 @@ const Study = {
             }
         } else {
             // Not fully learned yet, put it back in the queue
-            // If queue is very small, just put it at the end. Otherwise insert it ~3-5 positions back
             if (this.session.queue.length <= 3) {
                 this.session.queue.push(currentObj);
             } else {
@@ -299,24 +332,48 @@ const Study = {
         return this.isSessionComplete();
     },
 
-    // Handle when user clicks "Unknown"
+    // Handle "记错了" after initial choice
     handleUnknown() {
         if (!this.session.currentWord) return;
 
         const wordObj = this.session.currentWord;
         const word = wordObj.word;
 
-        // Reset consecutive correct count
         this.session.wordState[word] = 0;
         this.session.results.wrong++;
         this.session.results.actions++;
 
-        // Mark as incorrect in long-term memory system if we've never marked it wrong today
         this.markWord(word, false);
 
-        // Move to the back of the queue
         this.session.queue.shift();
         this.session.queue.push(wordObj);
+
+        this.saveSession();
+        this._prepareNextWord();
+    },
+
+    // Handle fuzzy: user was unsure, put word back closer in queue
+    handleFuzzy() {
+        if (!this.session.currentWord) return;
+
+        const wordObj = this.session.currentWord;
+        const word = wordObj.word;
+
+        // Reset consecutive correct but don't mark as wrong in long-term
+        this.session.wordState[word] = 0;
+        this.session.results.fuzzy++;
+        this.session.results.actions++;
+
+        this.markWordFuzzy(word);
+
+        // Insert 2-4 positions back so it appears sooner than unknown
+        this.session.queue.shift();
+        if (this.session.queue.length <= 2) {
+            this.session.queue.push(wordObj);
+        } else {
+            const insertPos = Math.min(this.session.queue.length - 1, Math.floor(Math.random() * 3) + 2);
+            this.session.queue.splice(insertPos, 0, wordObj);
+        }
 
         this.saveSession();
         this._prepareNextWord();
@@ -328,6 +385,9 @@ const Study = {
 };
 
 // ===== Study UI Functions =====
+
+// Track the user's initial choice before confirm
+let _pendingChoice = null; // 'known', 'fuzzy', 'unknown'
 
 // Show word count picker before starting study
 async function startStudy() {
@@ -430,6 +490,8 @@ function showCurrentWord() {
         return;
     }
 
+    _pendingChoice = null;
+
     const card = document.getElementById('study-card');
     card.classList.remove('flipped');
 
@@ -443,8 +505,11 @@ function showCurrentWord() {
     // Clear AI content
     document.getElementById('ai-area').innerHTML = '';
 
-    // Update action buttons visibility
+    // Show initial 3-button actions, hide confirm actions
     document.getElementById('study-actions').style.display = 'grid';
+    document.getElementById('study-confirm-actions').style.display = 'none';
+
+    // Remove any leftover continue button
     const continueBtn = document.getElementById('study-continue');
     if (continueBtn) continueBtn.style.display = 'none';
 
@@ -457,13 +522,12 @@ function showCurrentWord() {
     const required = Study.session.requiredCorrect;
     const state = Study.session.wordState[word.word] || 0;
 
-    // Visual indicators for how well a word is known (dots)
+    // Visual indicators (dots)
     let dotsHtml = '';
     for (let i = 0; i < required; i++) {
         dotsHtml += `<span style="display:inline-block; width:8px; height:8px; border-radius:50%; margin:0 2px; background:${i < state ? 'var(--success)' : 'var(--bg-tertiary)'}"></span>`;
     }
 
-    // Update study tap hint to include progress dots
     const hintEl = document.querySelector('.study-tap-hint');
     if (hintEl) {
         hintEl.innerHTML = `<div style="margin-bottom:8px">${dotsHtml}</div>点击卡片查看释义`;
@@ -477,52 +541,67 @@ function flipCard() {
     card.classList.toggle('flipped');
 }
 
-function markWord(known) {
-    if (!known) {
-        // Unknown: flip card automatically, show continue button
-        const card = document.getElementById('study-card');
-        if (!card.classList.contains('flipped')) {
-            card.classList.add('flipped');
-        }
+// Phase 1: User makes initial choice (认识/模糊/不认识)
+function markWord(choice) {
+    // choice: 'known', 'fuzzy', 'unknown'
+    _pendingChoice = choice;
 
-        document.getElementById('study-actions').style.display = 'none';
+    // Flip card to show translation + AI content
+    const card = document.getElementById('study-card');
+    if (!card.classList.contains('flipped')) {
+        card.classList.add('flipped');
+    }
 
-        // Add continue button if it doesn't exist
-        let continueBtn = document.getElementById('study-continue');
-        if (!continueBtn) {
-            continueBtn = document.createElement('button');
-            continueBtn.id = 'study-continue';
-            continueBtn.className = 'btn btn-primary btn-block mt-16';
-            continueBtn.textContent = '记住了，继续';
-            continueBtn.onclick = () => {
-                Study.handleUnknown();
-                showCurrentWord();
-            };
-            document.getElementById('page-study').appendChild(continueBtn);
+    // Hide initial 3 buttons, show confirm 2 buttons
+    document.getElementById('study-actions').style.display = 'none';
+    document.getElementById('study-confirm-actions').style.display = 'grid';
+
+    // Try to auto-load AI content if cached
+    if (typeof getAIAssist === 'function' && AI.isConfigured()) {
+        const word = Study.getCurrentWord();
+        if (word) {
+            const cached = AI.getCachedContent(word.word);
+            if (cached) {
+                const aiArea = document.getElementById('ai-area');
+                showAIContent(aiArea, cached.content, 0, true, cached.cachedAt);
+            }
         }
-        continueBtn.style.display = 'block';
-    } else {
-        // Known: handle it and move on
+    }
+}
+
+// Phase 2: User confirms (记对了/记错了)
+function confirmMark(correct) {
+    if (!_pendingChoice) return;
+
+    if (correct) {
+        // User says they got it right
         const isComplete = Study.handleKnown();
-
         if (isComplete) {
-            this.clearSession();
             finishSession();
         } else {
             showCurrentWord();
         }
+    } else {
+        // User says they got it wrong
+        if (_pendingChoice === 'fuzzy') {
+            Study.handleFuzzy();
+        } else {
+            Study.handleUnknown();
+        }
+        showCurrentWord();
     }
+
+    _pendingChoice = null;
 }
 
 async function finishSession() {
     Study.clearSession();
     const results = Study.session.results;
-    // Calculate unique words correctly handled
     const learned = Study.session.learnedWords;
     const totalActions = results.actions;
     const mode = Study.session.mode;
 
-    // Check if there are more new words available for "continue learning"
+    // Check if there are more new words available
     let hasMoreWords = false;
     if (mode === 'learn') {
         const allWords = await WordBank.loadSelectedWords();
@@ -530,7 +609,7 @@ async function finishSession() {
         hasMoreWords = newWords.length > 0;
     }
 
-    // Check if there are review words available
+    // Check if there are review words
     let hasReviewWords = false;
     const allWordsForReview = await WordBank.loadSelectedWords();
     const reviewWords = Study.getReviewWords(allWordsForReview);
@@ -547,6 +626,12 @@ async function finishSession() {
           🔄 去复习 (${reviewWords.length}个)
         </button>` : '';
 
+    const fuzzyInfo = results.fuzzy > 0 ? `
+            <div class="stat-card">
+              <div class="stat-value" style="color:var(--warning);">${results.fuzzy}</div>
+              <div class="stat-label">点模糊</div>
+            </div>` : '';
+
     const modalHTML = `
     <div class="modal-overlay show" id="finish-modal" onclick="closeFinishModal(event)">
       <div class="modal-content" onclick="event.stopPropagation()">
@@ -560,11 +645,12 @@ async function finishSession() {
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-value text-success">${results.correct}</div>
-              <div class="stat-label">点认识</div>
+              <div class="stat-label">记对了</div>
             </div>
+            ${fuzzyInfo}
             <div class="stat-card">
               <div class="stat-value text-danger">${results.wrong}</div>
-              <div class="stat-label">点不认识</div>
+              <div class="stat-label">记错了</div>
             </div>
             <div class="stat-card">
               <div class="stat-value">${totalActions > 0 ? Math.round((results.correct / totalActions) * 100) : 0}%</div>
@@ -621,7 +707,7 @@ async function updateHomeStats() {
     // Streak
     document.getElementById('streak-badge').textContent = `🔥 连续 ${streak.count} 天`;
 
-    // Today progress — shows progress beyond daily goal too
+    // Today progress
     const todayTotal = todayCount.newWords;
     const progressPct = Math.min(100, (todayTotal / dailyLimit) * 100);
     const overGoal = todayTotal > dailyLimit;
@@ -629,7 +715,6 @@ async function updateHomeStats() {
         ? `${todayTotal} / ${dailyLimit} 🔥 超额完成！`
         : `${todayTotal} / ${dailyLimit}`;
     document.getElementById('today-progress-bar').style.width = `${progressPct}%`;
-    // Change color when exceeded goal
     if (overGoal) {
         document.getElementById('today-progress-bar').style.background = 'linear-gradient(90deg, #34C759, #30D158)';
     } else {
