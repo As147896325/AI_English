@@ -229,6 +229,12 @@ function importData(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    // 移动 confirm 到读取之前，避免某些手机浏览器在异步回调里拦截弹窗
+    if (!confirm(`确认导入备份文件吗？当前登录账号的数据将被覆盖。`)) {
+        event.target.value = '';
+        return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
@@ -238,20 +244,29 @@ function importData(event) {
                 return;
             }
 
-            if (!confirm(`确认导入来自 "${importObj.username}" 的数据吗？当前数据将被覆盖。`)) {
-                return;
-            }
+            const currentUsername = Auth.getUsername();
+            const oldUsername = importObj.username || '';
 
             for (const [key, value] of Object.entries(importObj.data)) {
-                localStorage.setItem(key, value);
+                let newKey = key;
+                // 如果 JSON 里的用户名和当前不同，自动把 key 转换到当前用户下
+                if (oldUsername && currentUsername && key.includes(`_${oldUsername}`)) {
+                    newKey = key.replace(`_${oldUsername}`, `_${currentUsername}`);
+                }
+                localStorage.setItem(newKey, value);
             }
 
-            showToast('数据已导入 ✓');
-            updateHomeStats();
-            loadSettingsPage();
+            showToast('数据已导入 ✓，正在刷新...');
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } catch (err) {
+            console.error('Import error:', err);
             showToast('导入失败: 文件格式错误');
         }
+    };
+    reader.onerror = () => {
+        showToast('读取文件失败');
     };
     reader.readAsText(file);
     event.target.value = '';
